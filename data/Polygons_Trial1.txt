@@ -1,0 +1,14 @@
+#Juan Luis Parra
+#June 2020
+#extents of polygons used to characterize Toverlap in the Andes and Appalachians
+
+#Appalachians
+cuadro1 <- extent(-83.94194,-82.54267,35.02879,35.71528)
+cuadro2 <- extent(-81.19186,-78.70011,37.08391,39.41059)
+cuadro3 <- extent(-74.8787,-69.28792,42.51517,45.42436)
+
+#Andes
+cuadro4 <- extent(-67.74567,-62.75549,-22.72413,-15.65367)
+cuadro5 <- extent(-76.00255,-68.58037,-18.61333,-14.04033)
+cuadro6 <- extent(-81.99395,-75.93518,-4.268851,2.284316)
+cuadro7 <- extent(-77.60973,-73.21778,1.448905 ,8.605978)
