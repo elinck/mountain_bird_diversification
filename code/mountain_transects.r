@@ -1,54 +1,89 @@
-# R script to explore the generatation of elevational transects
+# R script to generate mountain elevational transects
 #
 # Ignacio Quintero
 #
 # t(-_-t)
 #
-# 12 07 2020
+# 10 08 2020
 #
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 library(raster)
 library(sp)
 library(rgeos)
+library(rgdal)
 library(data.table)
 
 # load DEM
 r0 = raster('~/data/mountain_bird_diversification/data/mn30_grd/mn30_grd/w001001.adf')
 
-# load extents
-e = list()
-e[[1]] = extent(-83.94194,-82.54267,35.02879,35.71528)
-e[[2]] = extent(-81.19186,-78.70011,37.08391,39.41059)
-e[[3]] = extent(-74.8787,-69.28792,42.51517,45.42436)
-e[[4]] = extent(-67.74567,-62.75549,-22.72413,-15.65367)
-e[[5]] = extent(-76.00255,-68.58037,-18.61333,-14.04033)
-e[[6]] = extent(-81.99395,-75.93518,-4.268851,2.284316)
-e[[7]] = extent(-77.60973,-73.21778,1.448905 ,8.605978)
+# read mountains
+mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
 
-# crop rasters
-r = lapply(e, function(x) crop(r0,x))
-
-# remove non-mountains
-mshp = readShapePoly('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
-
-for (i in 1:length(r)) {
-  exn = extract(r[[i]], mshp, cellnumbers = TRUE)
+# crop raster for each mountain
+rmt = list() # raster for only mountain
+rex = list() # raster for the extent associated
+for (i in 1:length(mshp)) {
+  ext = extent(mshp[i,])
+  ext@xmin = ext@xmin - 1
+  ext@xmax = ext@xmax + 1
+  ext@ymin = ext@ymin - 1
+  ext@ymax = ext@ymax + 1
+  rex[[i]] = rmt[[i]] = crop(r0, ext)
+  exn = extract(rmt[[i]], mshp[i,], cellnumbers = TRUE)
   exn = exn[!sapply(exn, is.null)]
   exn = sapply(exn, '[', , 1)
   exn = na.omit(unlist(exn))
-  r[[i]][setdiff(1:ncell(r[[i]]), exn)] = NA
+  rmt[[i]][setdiff(1:ncell(rmt[[i]]), exn)] = NA
   cat(i, '\n')
 }
 
+# delete madeira
+rmt[[40]] = NULL
+rex[[40]] = NULL
+
+# save cropped rasters
+save(rmt, rex, file = '~/data/mountain_bird_diversification/data/mountain_rasters.rda')
+
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+library(raster)
+library(sp)
+library(rgeos)
+library(rgdal)
+library(data.table)
+load('~/data/mountain_bird_diversification/data/mountain_rasters.rda')
 
 # make linear transects for all rectangles
 source('~/repos/mountain_bird_diversification/code/source.r')
 
-lss = lapply(r, make_transects, 
-  lowlands = 800, buffer_width = 0.05, min_transect_length = 500)
 
-save(r, lss, file = '~/data/mountain_bird_diversification/data/rect_transects.rda')
+# make transects according to 50% of elevational range
+# and lowlands defined as 10% of elevational range
+mxv = sapply(rmt, maxValue)
+mnv = sapply(rmt, minValue)
+
+rgi = (mxv - mnv)*0.2
+
+lss = list()
+for (i in 23:length(rmt)) {
+  lss[[i]] = 
+    make_transects(rmt[[i]], rex[[i]],
+       min_dist = 110000, buffer_width = 0.5, min_transect_length = rgi[i])
+  cat(i, '\n')
+}
+
+
+save(lss, file = '~/data/mountain_bird_diversification/data/mount_transects_23_46.rda')
+
+
+
+
+save(r, lss, file = '~/data/mountain_bird_diversification/data/mount_transects.rda')
+
+load('~/data/mountain_bird_diversification/data/mount_transects.rda')
 
 # make array from list of lines
 lssv = list()
@@ -82,15 +117,17 @@ for (j in 1:length(lss)) {
 }
 
 
+
 # plot results
-par(mfrow = c(2,4))
-for (j in 1:length(r)) {
-  plot(r[[j]])
+for (j in 1:length(lss)) {
+  j = 1
+  plot(rmt[[j]])
   lsi = lssv[[j]]
   segments(lsi[,1], lsi[,2], lsi[,3], lsi[,4])
 }
 
 
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 # extract temperature
 source('~/repos/mountain_bird_diversification/code/source.r')
 load('~/data/mountain_bird_diversification/data/rect_transects.rda')
@@ -205,9 +242,5 @@ jpeg(file = '~/data/mountain_bird_diversification/plots/rect_transects_toverlap.
     }
   }
 dev.off()
-
-
-
-
 
 
