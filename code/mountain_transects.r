@@ -45,7 +45,7 @@ rex[[40]] = NULL
 # save cropped rasters
 save(rmt, rex, file = '~/data/mountain_bird_diversification/data/mountain_rasters.rda')
 
-
+f09R1p4D
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -68,7 +68,7 @@ mnv = sapply(rmt, minValue)
 rgi = (mxv - mnv)*0.2
 
 lss = list()
-for (i in 23:length(rmt)) {
+for (i in 5:22) {
   lss[[i]] = 
     make_transects(rmt[[i]], rex[[i]],
        min_dist = 110000, buffer_width = 0.5, min_transect_length = rgi[i])
@@ -76,12 +76,7 @@ for (i in 23:length(rmt)) {
 }
 
 
-save(lss, file = '~/data/mountain_bird_diversification/data/mount_transects_23_46.rda')
-
-
-
-
-save(r, lss, file = '~/data/mountain_bird_diversification/data/mount_transects.rda')
+save(lss, file = '~/data/mountain_bird_diversification/data/mount_transects.rda')
 
 load('~/data/mountain_bird_diversification/data/mount_transects.rda')
 
@@ -89,7 +84,12 @@ load('~/data/mountain_bird_diversification/data/mount_transects.rda')
 lssv = list()
 
 for (j in 1:length(lss)) {
+
   lsi  = lss[[j]]
+  if (length(lsi) == 0) {
+    lssv[[j]] = lsi
+    next
+  }
   lsiv = array(NA_real_, dim = c(length(lsi), 4))
 
   lsiv[,1] = sapply(lsi, '[', 1, 1)
@@ -103,6 +103,10 @@ for (j in 1:length(lss)) {
 # remove intersecting transects
 for (j in 1:length(lss)) {
   lsi = lssv[[j]]
+  if (length(lsi) == 0) {
+    lssv[[j]] = lsi
+    next
+  }
   for (i1 in nrow(lsi):1) {
     l1 = lsi[i1,]
     if (anyNA(l1)) next
@@ -118,20 +122,38 @@ for (j in 1:length(lss)) {
 
 
 
-# plot results
-for (j in 1:length(lss)) {
-  j = 1
-  plot(rmt[[j]])
-  lsi = lssv[[j]]
-  segments(lsi[,1], lsi[,2], lsi[,3], lsi[,4])
-}
 
+library(raster)
+library(sp)
+library(rgeos)
+library(rgdal)
+library(data.table)
 
+r0 = raster('~/data/mountain_bird_diversification/data/mn30_grd/mn30_grd/w001001.adf')
+mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
+
+NAvalue(r0) = 0
+
+r0 = crop(r0, extent(-180.0001, 179.999, -60.00014, 83.99986))
+
+pdf(file = '~/data/mountain_bird_diversification/plots/mount_transects.pdf',
+  height = 10, width = 22)
+  par(bty = 'n')
+  plot(r0, col = brewer.pal(9,"Spectral"), axes = FALSE)
+  plot(mshp, add = TRUE, col = rgb(128,0,128,150, max = 255))
+  for (j in 1:length(lss)) {
+    lsi = lssv[[j]]
+    if (length(lsi) == 0) next
+    segments(lsi[,1], lsi[,2], lsi[,3], lsi[,4], lwd = 2, col = "black")
+  }
+dev.off()
+
+# BrBG PiYG PRGn PuOr RdBu RdGy RdYlBu RdYlGn Spectral
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 # extract temperature
 source('~/repos/mountain_bird_diversification/code/source.r')
-load('~/data/mountain_bird_diversification/data/rect_transects.rda')
-
+load('~/data/mountain_bird_diversification/data/mount_transects.rda')
+load('~/data/mountain_bird_diversification/data/mountain_rasters.rda')
 
 # make stack of temperatures
 fmin = list.files('~/data/mountain_bird_diversification/data/tmin/',
@@ -143,21 +165,25 @@ smax = stack(fmax)
 
 tr = stack(smin, smax)
 
-# load extents
-e = list()
-e[[1]] = extent(-83.94194,-82.54267,35.02879,35.71528)
-e[[2]] = extent(-81.19186,-78.70011,37.08391,39.41059)
-e[[3]] = extent(-74.8787,-69.28792,42.51517,45.42436)
-e[[4]] = extent(-67.74567,-62.75549,-22.72413,-15.65367)
-e[[5]] = extent(-76.00255,-68.58037,-18.61333,-14.04033)
-e[[6]] = extent(-81.99395,-75.93518,-4.268851,2.284316)
-e[[7]] = extent(-77.60973,-73.21778,1.448905 ,8.605978)
+
+# read mountains
+mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
 
 # crop rasters
-tr = lapply(e, function(x) crop(tr,x))
+trr = list() # raster 
+for (i in 1:length(mshp)) {
+  ext = extent(mshp[i,])
+  ext@xmin = ext@xmin - 1
+  ext@xmax = ext@xmax + 1
+  ext@ymin = ext@ymin - 1
+  ext@ymax = ext@ymax + 1
+  trr[[i]] = crop(tr, ext)
+  cat(i, '\n')
+}
+trr[[40]] = NULL
 
 # add elevation
-r = mapply(stack, r, tr)
+rex = mapply(stack, rex, trr)
 
 ## extract Temperatures for each line
 
@@ -166,6 +192,11 @@ lss = list()
 
 for (j in 1:length(lssv)) {
   lsi  = lssv[[j]]
+
+  if (length(lsi) == 0) {
+    lss[[j]] = lsi
+    next
+  }
 
   li = list()
   for (i in 1:nrow(lsi)) {
@@ -179,13 +210,17 @@ for (j in 1:length(lssv)) {
 ex = list()
 for (j in 1:length(lss)) {
   lsi = lss[[j]]
+  if (length(lsi) == 0) {
+    ex[[j]] = lsi
+    next
+  }
   lsi = lapply(lsi, Line)
   for (i in 1:length(lsi)) {
     lsi[[i]] = Lines(lsi[[i]], ID = i)
   }
   spl = SpatialLines(lsi)
-  proj4string(spl) = proj4string(r[[j]])
-  ex[[j]] = extract(r[[j]],spl)
+  proj4string(spl) = proj4string(rex[[j]])
+  ex[[j]] = extract(rex[[j]],spl)
   cat(j, '\n')
 }
 
@@ -194,6 +229,11 @@ to = list()
 ed = list()
 for (j in 1:length(ex)) {
   exi = ex[[j]]
+  if (length(exi) == 0) {
+    to[[j]] = list()
+    ed[[j]] = list()
+    next
+  }
   toi = list()
   edi = list()
   for (i in 1:length(exi)) {
@@ -207,23 +247,30 @@ for (j in 1:length(ex)) {
 }
 
 save(to, ed,
-  file = '~/data/mountain_bird_diversification/results/rect_transects_toverlap.rda')
+  file = '~/data/mountain_bird_diversification/results/mount_transects_toverlap.rda')
 
 # make plots
-load('~/data/mountain_bird_diversification/results/rect_transects_toverlap.rda')
+load('~/data/mountain_bird_diversification/results/mount_transects_toverlap.rda')
 
+mshp = mshp[-40,]
 
-jpeg(file = '~/data/mountain_bird_diversification/plots/rect_transects_toverlap.jpeg',
-  width = 1000, height = 500)
-  par(mfrow = c(2,4), bty = 'n', las = 3)
+for (j in 1:length(to)) {
 
-  for (j in 1:length(to)) {
+  toi = to[[j]]
+  edi = ed[[j]]
 
-    toi = to[[j]]
-    edi = ed[[j]]
+  if (length(toi) == 0) next
+
+  nam = mshp@data[j,'Name']
+  if (nam =="US Great Basin/Sierra Nevada") {
+    nam =  "US Great Basin-Sierra Nevada"
+  }
+
+  jpeg(file = paste0('~/data/mountain_bird_diversification/plots/temp_ele_', nam,'.jpeg'),
+  width = 700, height = 500)
 
     plot(1, type = 'n', xlim = c(0,4000), ylim = c(0,12),
-      xlab = 'Distance in elevation (m)', ylab = 'Temperature overlap')
+      xlab = 'Distance in elevation (m)', ylab = 'Temperature overlap', bty = 'n')
 
     for (i in 1:length(toi)) {
       d1 = to[[j]][[i]]
@@ -240,7 +287,10 @@ jpeg(file = '~/data/mountain_bird_diversification/plots/rect_transects_toverlap.
 
       lines(x, y, col = rgb(0,0,0,5/length(toi)), lwd = 2)
     }
-  }
-dev.off()
+
+  dev.off()
+}
+
+
 
 
