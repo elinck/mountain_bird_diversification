@@ -14,11 +14,19 @@ library(rgeos)
 library(rgdal)
 library(data.table)
 
+###
+# NOW IN CLUSTER
+###
+
 # load DEM
-r0 = raster('~/data/mountain_bird_diversification/data/mn30_grd/mn30_grd/w001001.adf')
+r0 = raster('~/mn30_grd/mn30_grd/w001001.adf')
+
+r0[r0==0] = NA
+
+rasterOptions(tmpdir = "/mnt/data/personal/ignacioq/raster_tmp")
 
 # read mountains
-mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
+mshp = readShapePoly('~/MountSys/Global_GMBA.shp')
 
 # crop raster for each mountain
 rmt = list() # raster for only mountain
@@ -32,20 +40,17 @@ for (i in 1:length(mshp)) {
   rex[[i]] = rmt[[i]] = crop(r0, ext)
   exn = extract(rmt[[i]], mshp[i,], cellnumbers = TRUE)
   exn = exn[!sapply(exn, is.null)]
-  exn = sapply(exn, '[', , 1)
+  exn = sapply(exn, function(x) x[,1])
   exn = na.omit(unlist(exn))
   rmt[[i]][setdiff(1:ncell(rmt[[i]]), exn)] = NA
   cat(i, '\n')
 }
 
-# delete madeira
-rmt[[40]] = NULL
-rex[[40]] = NULL
 
 # save cropped rasters
-save(rmt, rex, file = '~/data/mountain_bird_diversification/data/mountain_rasters.rda')
+save(rmt, rex, file = '~/mountain_rasters.rda')
 
-f09R1p4D
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -54,10 +59,10 @@ library(sp)
 library(rgeos)
 library(rgdal)
 library(data.table)
-load('~/data/mountain_bird_diversification/data/mountain_rasters.rda')
+load('~/mountain_rasters.rda')
 
 # make linear transects for all rectangles
-source('~/repos/mountain_bird_diversification/code/source.r')
+source('~/source.r')
 
 
 # make transects according to 50% of elevational range
@@ -68,7 +73,7 @@ mnv = sapply(rmt, minValue)
 rgi = (mxv - mnv)*0.2
 
 lss = list()
-for (i in 5:22) {
+for (i in 1:length(rmt)) {
   lss[[i]] = 
     make_transects(rmt[[i]], rex[[i]],
        min_dist = 110000, buffer_width = 0.5, min_transect_length = rgi[i])
