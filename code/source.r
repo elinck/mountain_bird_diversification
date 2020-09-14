@@ -12,38 +12,45 @@ library(sp)
 library(rgeos)
 library(data.table)
 
-make_transects = function(ri, lowlands = 1000, buffer_width = 0.05, min_transect_length = 500) {
+make_transects = function(rmti, rexi,
+                          min_dist = 110000, 
+                          buffer_width = 0.05, 
+                          min_transect_length = 1000) {
 
   lns = list()
   i   = 0
-
+  ii = 0
   # make line
   l = array(NA_real_, dim = c(2,2))
 
   while(TRUE) {
 
-    # make counter
-    i = i + 1
-
+    ii = ii + 1
     # set highest point
-    mxv = maxValue(ri)
+    mxv = maxValue(rmti)
 
-    if (mxv <= (lowlands + min_transect_length)) break
+    if (is.na(mxv)) break
 
-    l[1,] = xyFromCell(ri, cell = which(ri[] == mxv))[1,]
-    dfp = distanceFromPoints(ri, l[1,])
-    dfp[ri >= lowlands] = NA
-    dfp[is.na(ri)] = NA
+    if (mxv <= min_transect_length) break
+
+    l[1,] = xyFromCell(rmti, cell = which(rmti[] == mxv))[1,]
+    dfp = distanceFromPoints(rexi, l[1,])
+    dfp[dfp > min_dist] = NA
+
+    rexitmp = rexi
+    rexitmp[is.na(dfp)] = NA
 
     # set closest lowland point
-    wmncell = which.min(dfp)
+    wmncell = which.min(rexitmp)[1]
     if (is.na(wmncell)) break
-    l[2,] = xyFromCell(ri, cell = wmncell)[1,]
+    l[2,] = xyFromCell(rexi, cell = wmncell)[1,]
 
-    mnv = ri[wmncell]
+    mnv = rexi[wmncell]
 
     # save line
     if ((mxv - mnv) > min_transect_length) {
+      # make counter
+      i = i + 1
       lns[[i]] = l
       cat('added transect (', mxv,'=>', mnv,') \n')
     }
@@ -51,10 +58,10 @@ make_transects = function(ri, lowlands = 1000, buffer_width = 0.05, min_transect
     # remove buffer around point
     rb = buffer(SpatialLines(list(Lines(Line(l), ID = 1))), 
       width = buffer_width)
-    exn = extract(ri, rb, cellnumbers = TRUE)[[1]][,1]
-    ri[exn] = NA
+    exn = extract(rmti, rb, cellnumbers = TRUE)[[1]][,1]
+    rmti[exn] = NA
 
-    cat('successfully eval', i, 'transect(s) \n')
+    cat('successfully eval', ii, 'transect(s) \n')
   }
 
   return(lns)

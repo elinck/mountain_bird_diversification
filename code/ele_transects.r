@@ -1,4 +1,4 @@
-# R script to generate elevational transects
+# R script to explore the generatation of elevational transects
 #
 # Ignacio Quintero
 #
