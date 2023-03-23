@@ -9,29 +9,23 @@
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 library(raster)
-library(sp)
-library(rgeos)
-library(rgdal)
+library(sf)
 library(data.table)
 
-###
-# NOW IN CLUSTER
-###
+
 
 # load DEM
-r0 = raster('~/mn30_grd/mn30_grd/w001001.adf')
+r0 = raster('~/data/mountain_bird_diversification/data/wc2.1_30s_elev.tif')
 
-r0[r0==0] = NA
-
-rasterOptions(tmpdir = "/mnt/data/personal/ignacioq/raster_tmp")
+rasterOptions(tmpdir = "~/Desktop/tmp")
 
 # read mountains
-mshp = readShapePoly('~/MountSys/Global_GMBA.shp')
+mshp = read_sf('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
 
 # crop raster for each mountain
 rmt = list() # raster for only mountain
 rex = list() # raster for the extent associated
-for (i in 1:length(mshp)) {
+for (i in 1:nrow(mshp)) {
   ext = extent(mshp[i,])
   ext@xmin = ext@xmin - 1
   ext@xmax = ext@xmax + 1
@@ -46,44 +40,56 @@ for (i in 1:length(mshp)) {
   cat(i, '\n')
 }
 
-
-# save cropped rasters
-save(rmt, rex, file = '~/mountain_rasters.rda')
-
+for (i in seq_along(rmt)) {
+  writeRaster(rmt[[i]], 
+    paste0('/Users/quintero/data/mountain_bird_diversification/data/mountain_rasters/rmt_',i),
+    overwrite = TRUE)
+  writeRaster(rex[[i]], 
+    paste0('/Users/quintero/data/mountain_bird_diversification/data/mountain_rasters/rex_',i),
+  overwrite = TRUE)
+}
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 library(raster)
-library(sp)
-library(rgeos)
-library(rgdal)
+library(sf)
 library(data.table)
-load('~/mountain_rasters.rda')
+
+
+rasterOptions(tmpdir = "~/Desktop/tmp")
 
 # make linear transects for all rectangles
-source('~/source.r')
+source('~/repos/mountain_bird_diversification/code/source.r')
 
 
-# make transects according to 50% of elevational range
+# make transects according to 40% of elevational range
 # and lowlands defined as 10% of elevational range
-mxv = sapply(rmt, maxValue)
-mnv = sapply(rmt, minValue)
-
-rgi = (mxv - mnv)*0.2
 
 lss = list()
-for (i in 1:length(rmt)) {
+for (i in seq_len(47)) {
+
+  rmti = raster( 
+    paste0('/Users/quintero/data/mountain_bird_diversification/data/mountain_rasters/rmt_',i))
+  rexi = raster( 
+    paste0('/Users/quintero/data/mountain_bird_diversification/data/mountain_rasters/rex_',i))
+
+  mxv = maxValue(rmti)
+  mnv = minValue(rmti)
+
   lss[[i]] = 
-    make_transects(rmt[[i]], rex[[i]],
-       min_dist = 110000, buffer_width = 0.5, min_transect_length = rgi[i])
+    make_transects(rmti, rexi,
+       min_dist = 110000, buffer_width = 50000, min_transect_length = 1000)
+
+  save(lss, file = '~/data/mountain_bird_diversification/data/mount_transects.rda')
+
   cat(i, '\n')
 }
 
-
 save(lss, file = '~/data/mountain_bird_diversification/data/mount_transects.rda')
 
-load('~/data/mountain_bird_diversification/data/mount_transects.rda')
+# load('~/data/mountain_bird_diversification/data/mount_transects.rda')
+
 
 # make array from list of lines
 lssv = list()
@@ -129,15 +135,12 @@ for (j in 1:length(lss)) {
 
 
 library(raster)
-library(sp)
-library(rgeos)
-library(rgdal)
+library(sf)
 library(data.table)
+library(RColorBrewer)
 
-r0 = raster('~/data/mountain_bird_diversification/data/mn30_grd/mn30_grd/w001001.adf')
-mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
-
-NAvalue(r0) = 0
+r0 = raster('~/data/mountain_bird_diversification/data/wc2.1_30s_elev.tif')
+mshp = read_sf('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
 
 r0 = crop(r0, extent(-180.0001, 179.999, -60.00014, 83.99986))
 
@@ -148,8 +151,10 @@ pdf(file = '~/data/mountain_bird_diversification/plots/mount_transects.pdf',
   plot(mshp, add = TRUE, col = rgb(128,0,128,150, max = 255))
   for (j in 1:length(lss)) {
     lsi = lssv[[j]]
+    lsi = matrix(lsi, ncol= 4)
     if (length(lsi) == 0) next
     segments(lsi[,1], lsi[,2], lsi[,3], lsi[,4], lwd = 2, col = "black")
+    print(j)
   }
 dev.off()
 
@@ -170,27 +175,15 @@ smax = stack(fmax)
 
 tr = stack(smin, smax)
 
+r0 = raster('~/data/mountain_bird_diversification/data/wc2.1_30s_elev.tif')
 
 # read mountains
-mshp = readOGR('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
+mshp = read_sf('~/data/mountain_bird_diversification/data/MountSys/Global_GMBA.shp')
 
-# crop rasters
-trr = list() # raster 
-for (i in 1:length(mshp)) {
-  ext = extent(mshp[i,])
-  ext@xmin = ext@xmin - 1
-  ext@xmax = ext@xmax + 1
-  ext@ymin = ext@ymin - 1
-  ext@ymax = ext@ymax + 1
-  trr[[i]] = crop(tr, ext)
-  cat(i, '\n')
-}
-trr[[40]] = NULL
-
-# add elevation
-rex = mapply(stack, rex, trr)
 
 ## extract Temperatures for each line
+
+lssv[[40]] = as.matrix(lssv[[40]], ncol = 4)
 
 # make list from array of lines
 lss = list()
@@ -213,6 +206,7 @@ for (j in 1:length(lssv)) {
 
 # make spatial lines and extract values
 ex = list()
+el = list()
 for (j in 1:length(lss)) {
   lsi = lss[[j]]
   if (length(lsi) == 0) {
@@ -225,15 +219,57 @@ for (j in 1:length(lss)) {
   }
   spl = SpatialLines(lsi)
   proj4string(spl) = proj4string(rex[[j]])
-  ex[[j]] = extract(rex[[j]],spl)
+  ex[[j]] = extract(tr, spl)
+  el[[j]] = extract(r0, spl)
   cat(j, '\n')
 }
+
+
+# remove NAs
+for (j in 1:length(ex)) {
+  exi = ex[[j]]
+  eli = el[[j]]
+
+  lna = sapply(eli, anyNA)
+  if (length(lna) == 0) next
+
+  wna = which(sapply(eli, anyNA))
+
+  for (i in wna) {
+    elj = eli[[i]]
+
+    inc = TRUE
+    if (is.na(elj[1])) {
+      inc = TRUE 
+    } else {
+      if (is.na(elj[length(elj)])) {
+        inc = FALSE
+      } else {
+        if (elj[1] > elj[length(elj)]) { 
+            inc = FALSE
+        }
+      }
+    }
+
+    if (inc) {
+      idx = (max(which(is.na(elj)))+1):length(elj)
+    } else {
+      idx = 1:(min(which(is.na(elj)))-1)
+    }
+    eli[[i]] = elj[idx]
+    exi[[i]] = exi[[i]][idx]
+  }
+}
+
+
+
 
 # Estimate temperature and elevation overlap/distance
 to = list()
 ed = list()
 for (j in 1:length(ex)) {
   exi = ex[[j]]
+  eli = el[[j]]
   if (length(exi) == 0) {
     to[[j]] = list()
     ed[[j]] = list()
@@ -242,9 +278,10 @@ for (j in 1:length(ex)) {
   toi = list()
   edi = list()
   for (i in 1:length(exi)) {
-    dt = exi[[i]]
-    toi[[i]] = toverlapM(dt[,2:25])
-    edi[[i]] = dist(dt[,1])
+    exii = exi[[i]]
+    elii = eli[[i]]
+    toi[[i]] = toverlapM(exii)
+    edi[[i]] = dist(elii)
   }
   to[[j]] = toi
   ed[[j]] = edi

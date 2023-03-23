@@ -9,12 +9,12 @@
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 library(raster)
 library(sp)
-library(rgeos)
+library(sf)
 library(data.table)
 
 make_transects = function(rmti, rexi,
                           min_dist = 110000, 
-                          buffer_width = 0.05, 
+                          buffer_width = 0.5, 
                           min_transect_length = 1000) {
 
   lns = list()
@@ -55,11 +55,13 @@ make_transects = function(rmti, rexi,
       cat('added transect (', mxv,'=>', mnv,') \n')
     }
 
-    # remove buffer around point
-    rb = buffer(SpatialLines(list(Lines(Line(l), ID = 1))), 
+    # remove buffer around line
+    rb = buffer(SpatialLines(list(Lines(Line(l), ID = 1)), proj4string = crs(rmti)), 
       width = buffer_width)
     exn = extract(rmti, rb, cellnumbers = TRUE)[[1]][,1]
     rmti[exn] = NA
+
+    removeTmpFiles(0.2)
 
     cat('successfully eval', ii, 'transect(s) \n')
   }
